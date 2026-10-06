@@ -1,5 +1,5 @@
 # VEGAS-EXT_ExifTool
-This project provides a custom command extension for VEGAS Pro that shows all EXIF-Datei of clips on the VEGAS timeline or in the mdeia pool.
+This project provides a custom command extension for VEGAS Pro that shows all EXIF-Data of clips on the VEGAS timeline or in the mdeia pool.
 
 # Installation:
 - Download the zip archive Vegas-ExifTool.zip from the last release in this github repository.
