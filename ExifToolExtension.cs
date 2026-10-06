@@ -47,6 +47,10 @@ namespace ExifToolExtension
       WordWrap = false,
       Font = new Font("Consolas", 9f)
     };
+
+    private readonly Button about = new Button
+    { Text = "About", Dock = DockStyle.Right, Width = 60 }; 
+
     private readonly Timer poll = new Timer { Interval = 500 };
     private string lastPath;
 
@@ -57,11 +61,22 @@ namespace ExifToolExtension
       PersistDockWindowState = true;
       DefaultFloatingSize = new Size(420, 600);
 
-      source.Items.AddRange(new object[] { "Auto", "Timeline", "Project Media" });
+      source.Items.AddRange(new object[] { "Auto", "Timeline", "Project Media", "None" });
       source.SelectedIndex = 0;
 
-      Controls.Add(output);   // Fill first, then Top
-      Controls.Add(source);
+      //Controls.Add(output);   // Fill first, then Top
+      //Controls.Add(source);
+
+      source.Dock = DockStyle.Fill;
+      var topBar = new Panel { Dock = DockStyle.Top, Height = source.PreferredHeight + 4 };
+      topBar.Controls.Add(source);   // Fill first
+      topBar.Controls.Add(about);    // then Right
+
+      Controls.Add(output);          // Fill
+      Controls.Add(topBar);          // Top
+
+      about.Click += (s, e) => ShowAbout();
+
 
       poll.Tick += (s, e) => Refresh(false);
       vegas.TrackEventStateChanged += OnVegasChanged;
@@ -125,6 +140,7 @@ namespace ExifToolExtension
       {
         case 1: return GetTimelinePath();
         case 2: return GetProjectMediaPath();
+        case 3: return null;
         default: return GetTimelinePath() ?? GetProjectMediaPath();
       }
     }
@@ -157,6 +173,76 @@ namespace ExifToolExtension
           busy = false;
         }));
       });
+    }
+
+    private void ShowAbout()
+    {
+      string ver = System.Reflection.Assembly.GetExecutingAssembly()
+                         .GetName().Version.ToString();
+      string exifVer = "not found";
+      try
+      {
+        string dir = Path.GetDirectoryName(
+            System.Reflection.Assembly.GetExecutingAssembly().Location);
+        var psi = new ProcessStartInfo
+        {
+          FileName = Path.Combine(dir, "exiftool.exe"),
+          Arguments = "-ver",
+          UseShellExecute = false,
+          RedirectStandardOutput = true,
+          CreateNoWindow = true
+        };
+        using (var p = Process.Start(psi))
+        {
+          exifVer = p.StandardOutput.ReadToEnd().Trim();
+          p.WaitForExit();
+        }
+      }
+      catch { }
+
+      using (var dlg = new Form())
+      {
+        dlg.Text = "About ExifTool Metadata";
+        dlg.FormBorderStyle = FormBorderStyle.FixedDialog;
+        dlg.StartPosition = FormStartPosition.CenterParent;
+        dlg.MaximizeBox = false; dlg.MinimizeBox = false; dlg.ShowInTaskbar = false;
+        dlg.ClientSize = new Size(380, 190);
+
+        var info = new Label
+        {
+          Left = 16,
+          Top = 16,
+          Width = 348,
+          Height = 90,
+          Text = "ExifTool Metadata for VEGAS Pro\r\n" +
+                   "Version " + ver + "\r\n\r\n" +
+                   "© 2026 Harold Linke. All rights reserved.\r\n\r\n" +
+                   "Uses ExifTool " + exifVer + " by Phil Harvey."
+        };
+        var link = new LinkLabel
+        {
+          Left = 16,
+          Top = 112,
+          Width = 348,
+          Text = "https://exiftool.org"
+        };
+        link.LinkClicked += (s, e) =>
+        {
+          try { Process.Start(new ProcessStartInfo("https://exiftool.org") { UseShellExecute = true }); }
+          catch { }
+        };
+        var ok = new Button
+        {
+          Text = "OK",
+          DialogResult = DialogResult.OK,
+          Left = 290,
+          Top = 150,
+          Width = 74
+        };
+        dlg.Controls.AddRange(new Control[] { info, link, ok });
+        dlg.AcceptButton = ok;
+        dlg.ShowDialog(this.ParentWindow ?? this.OwnerWindow);
+      }
     }
 
     private static string RunExifTool(string file)
