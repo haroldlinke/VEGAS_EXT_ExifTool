@@ -19,19 +19,45 @@ namespace ExifToolExtension
     public void InitializeModule(Vegas vegas)
     {
       this.vegas = vegas;
+      //cmd = new CustomCommand(CommandCategory.View, "ExifToolMetadata")
+      //{
+      //  DisplayName = "ExifTool Metadata",
+      //  MenuItemName = "ExifTool Metadata"
+      //};
+      //cmd.Invoked += (s, e) => vegas.ActivateDockView("ExifToolMetadata");
+
+      //dock = new ExifDockView(vegas) { AutoLoadCommand = cmd };
+      //vegas.LoadDockView(dock);
+    }
+
+    public ICollection GetCustomCommands()
+    {
       cmd = new CustomCommand(CommandCategory.View, "ExifToolMetadata")
       {
         DisplayName = "ExifTool Metadata",
         MenuItemName = "ExifTool Metadata"
       };
-      cmd.Invoked += (s, e) => vegas.ActivateDockView("ExifToolMetadata");
-
-      dock = new ExifDockView(vegas) { AutoLoadCommand = cmd };
-      vegas.LoadDockView(dock);
+      //cmd.Invoked += (s, e) => vegas.ActivateDockView("ExifToolMetadata");return new[] { cmd }; }
+      cmd.Invoked += this.HandleInvoked; //(s, e) => vegas.ActivateDockView("ExifTool Metadata");
+      cmd.MenuPopup += this.HandleMenuPopup;
+      return new[] { cmd };
     }
 
-    public ICollection GetCustomCommands() { return new[] { cmd }; }
+    void HandleInvoked(Object sender, EventArgs args)
+    {
+      if (!vegas.ActivateDockView("ExifTool Metadata"))
+      {
+        DockableControl dockView = new ExifDockView(vegas);
+        vegas.LoadDockView(dockView);
+      }
+    }
+
+    void HandleMenuPopup(Object sender, EventArgs args)
+    {
+      cmd.Checked = vegas.FindDockView("ExifTool Metadata");
+    }
   }
+
 
   public class ExifDockView : DockableControl
   {
@@ -48,8 +74,8 @@ namespace ExifToolExtension
       Font = new Font("Consolas", 9f)
     };
 
-    private readonly Button about = new Button
-    { Text = "About", Dock = DockStyle.Right, Width = 60 }; 
+    private readonly Button about = new ScriptPortal.MediaSoftware.Skins.Button
+    { Text = "About", Dock = DockStyle.Right, Width = 60 };
 
     private readonly Timer poll = new Timer { Interval = 500 };
     private string lastPath;
@@ -81,7 +107,9 @@ namespace ExifToolExtension
       poll.Tick += (s, e) => Refresh(false);
       vegas.TrackEventStateChanged += OnVegasChanged;
       vegas.TrackEventCountChanged += OnVegasChanged;
-      vegas.MediaPoolChanged += OnVegasChanged;
+      vegas.TrackSelectionChanged += OnVegasChanged;
+      vegas.MediaPoolChanged += OnVegasMediaChanged;
+      vegas.MediaSelectionChanged += OnVegasMediaChanged;
       source.SelectedIndexChanged += (s, e) => Refresh(true);
     }
 
@@ -96,12 +124,22 @@ namespace ExifToolExtension
       poll.Stop();
       vegas.TrackEventStateChanged -= OnVegasChanged;
       vegas.TrackEventCountChanged -= OnVegasChanged;
-      vegas.MediaPoolChanged -= OnVegasChanged;
+      vegas.MediaPoolChanged -= OnVegasMediaChanged;
+      vegas.MediaSelectionChanged -= OnVegasMediaChanged;
       base.OnClosed(args);
     }
 
+    bool mediachanged = false;
+
     private void OnVegasChanged(object sender, EventArgs e)
     {
+      mediachanged = false;
+      RequestRefresh(false);
+    }
+
+    private void OnVegasMediaChanged(object sender, EventArgs e)
+    {
+      mediachanged = true;
       RequestRefresh(false);
     }
 
@@ -141,7 +179,7 @@ namespace ExifToolExtension
         case 1: return GetTimelinePath();
         case 2: return GetProjectMediaPath();
         case 3: return null;
-        default: return GetTimelinePath() ?? GetProjectMediaPath();
+        default: return mediachanged ? GetProjectMediaPath():  GetTimelinePath();
       }
     }
 
@@ -151,7 +189,11 @@ namespace ExifToolExtension
       if (busy) return;
 
       string path;
-      try { path = GetPath(); } catch { return; }
+      try
+      {
+        path = GetPath(); 
+      }
+      catch { return; }
 
       if (!force && path == lastPath) return;
       lastPath = path;
