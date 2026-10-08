@@ -13,39 +13,30 @@ namespace ExifToolExtension
   public class ExifModule : ICustomCommandModule
   {
     private Vegas vegas;
-    private CustomCommand cmd;
+    private CustomCommand cmd = new CustomCommand(CommandCategory.View, "ExifToolExtension");
     private ExifDockView dock;
 
     public void InitializeModule(Vegas vegas)
     {
       this.vegas = vegas;
-      //cmd = new CustomCommand(CommandCategory.View, "ExifToolMetadata")
-      //{
-      //  DisplayName = "ExifTool Metadata",
-      //  MenuItemName = "ExifTool Metadata"
-      //};
-      //cmd.Invoked += (s, e) => vegas.ActivateDockView("ExifToolMetadata");
-
-      //dock = new ExifDockView(vegas) { AutoLoadCommand = cmd };
-      //vegas.LoadDockView(dock);
     }
 
     public ICollection GetCustomCommands()
     {
-      cmd = new CustomCommand(CommandCategory.View, "ExifToolMetadata")
-      {
-        DisplayName = "ExifTool Metadata",
-        MenuItemName = "ExifTool Metadata"
-      };
-      //cmd.Invoked += (s, e) => vegas.ActivateDockView("ExifToolMetadata");return new[] { cmd }; }
-      cmd.Invoked += this.HandleInvoked; //(s, e) => vegas.ActivateDockView("ExifTool Metadata");
+
+      cmd.DisplayName = "ExifTool Metadata";
+      cmd.MenuItemName = "ExifTool Metadata";
+      cmd.Invoked += this.HandleInvoked;
       cmd.MenuPopup += this.HandleMenuPopup;
+      cmd.IconFile = Path.Combine(Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location), "ExifToolExtension.png");
+      cmd.CanAddToToolbar = true;
+      cmd.CanAddToMenu = true;
       return new[] { cmd };
     }
 
     void HandleInvoked(Object sender, EventArgs args)
     {
-      if (!vegas.ActivateDockView("ExifTool Metadata"))
+      if (!vegas.ActivateDockView("ExifToolExtension"))
       {
         DockableControl dockView = new ExifDockView(vegas);
         vegas.LoadDockView(dockView);
@@ -54,7 +45,7 @@ namespace ExifToolExtension
 
     void HandleMenuPopup(Object sender, EventArgs args)
     {
-      cmd.Checked = vegas.FindDockView("ExifTool Metadata");
+      cmd.Checked = vegas.FindDockView("ExifToolExtension");
     }
   }
 
@@ -62,7 +53,7 @@ namespace ExifToolExtension
   public class ExifDockView : DockableControl
   {
     private readonly Vegas vegas;
-    private readonly ComboBox source = new ScriptPortal.MediaSoftware.Skins.ComboBox
+    private readonly ComboBox source_selector = new ScriptPortal.MediaSoftware.Skins.ComboBox
     { Dock = DockStyle.Top, DropDownStyle = ComboBoxStyle.DropDownList };
     private readonly TextBox output = new ScriptPortal.MediaSoftware.Skins.TextBox
     {
@@ -77,40 +68,37 @@ namespace ExifToolExtension
     private readonly Button about = new ScriptPortal.MediaSoftware.Skins.Button
     { Text = "About", Dock = DockStyle.Right, Width = 60 };
 
-    private readonly Timer poll = new Timer { Interval = 500 };
+    private readonly Timer poll = new Timer { Interval = 500 }; // delay to avoid excessive refreshes
     private string lastPath;
 
-    public ExifDockView(Vegas vegas) : base("ExifToolMetadata")
+    public ExifDockView(Vegas vegas) : base("ExifToolExtension")
     {
       this.vegas = vegas;
       DisplayName = "ExifTool Metadata";
       PersistDockWindowState = true;
-      DefaultFloatingSize = new Size(420, 600);
+      AutoScroll = true;
+      DefaultFloatingSize = new Size(600, 600);
+      SetStyle(ControlStyles.ContainerControl, true);
 
-      source.Items.AddRange(new object[] { "Auto", "Timeline", "Project Media", "None" });
-      source.SelectedIndex = 0;
 
-      //Controls.Add(output);   // Fill first, then Top
-      //Controls.Add(source);
+      source_selector.Items.AddRange(new object[] { "Auto", "Timeline", "Project Media", "None" });
+      source_selector.SelectedIndex = 0;
 
-      source.Dock = DockStyle.Fill;
-      var topBar = new Panel { Dock = DockStyle.Top, Height = source.PreferredHeight + 4 };
-      topBar.Controls.Add(source);   // Fill first
-      topBar.Controls.Add(about);    // then Right
+      source_selector.Dock = DockStyle.Fill;
+      var topBar = new Panel { Dock = DockStyle.Top, Height = source_selector.PreferredHeight + 4 };
+      topBar.Controls.Add(source_selector);   
+      topBar.Controls.Add(about);    
 
-      Controls.Add(output);          // Fill
-      Controls.Add(topBar);          // Top
-
+      Controls.Add(output);
+      Controls.Add(topBar);
       about.Click += (s, e) => ShowAbout();
-
-
       poll.Tick += (s, e) => Refresh(false);
       vegas.TrackEventStateChanged += OnVegasChanged;
       vegas.TrackEventCountChanged += OnVegasChanged;
       vegas.TrackSelectionChanged += OnVegasChanged;
       vegas.MediaPoolChanged += OnVegasMediaChanged;
       vegas.MediaSelectionChanged += OnVegasMediaChanged;
-      source.SelectedIndexChanged += (s, e) => Refresh(true);
+      source_selector.SelectedIndexChanged += (s, e) => Refresh(true);
     }
 
     protected override void OnLoaded(EventArgs args)
@@ -174,7 +162,7 @@ namespace ExifToolExtension
 
     private string GetPath()
     {
-      switch (source.SelectedIndex)
+      switch (source_selector.SelectedIndex)
       {
         case 1: return GetTimelinePath();
         case 2: return GetProjectMediaPath();
